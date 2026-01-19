@@ -2732,9 +2732,120 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(!c->item && c->wall == waNone && hrand(2000) < 100 + PT(kills[moHexer], 50) && notDippingFor(itCursed))
           c->item = itCursed;
 
-        if(hrand_monster(2500) < 25 + items[itCursed] + yendor::hardness() && !safety) 
+        if(hrand_monster(2500) < 25 + items[itCursed] + yendor::hardness() && !safety)
           c->monst = moHexer;
         }
+      break;
+      }
+
+    case laPeaceful: {
+      // Maze generation using DFS
+      // This runs once when the first cell is processed
+      static bool maze_generated = false;
+      static int cleanup_hook = addHook(hooks_clearmemory, 100, [] { maze_generated = false; });
+      (void)cleanup_hook; // suppress unused warning
+
+      if(!maze_generated && firstland == laPeaceful) {
+        maze_generated = true;
+
+        cell* start = currentmap->gamestart();
+
+        // Step 1: Generate all cells within distance maze_radius
+        celllister cl(start, maze_radius, 100000, NULL);
+        vector<cell*>& cells = cl.lst;
+        int n = isize(cells);
+
+        // Step 2: Build adjacency list representation
+        // Map cell pointers to indices
+        map<cell*, int> cell_to_idx;
+        for(int i = 0; i < n; i++) {
+          cell_to_idx[cells[i]] = i;
+        }
+
+        // Build adjacency lists (only including cells within our set)
+        vector<vector<int>> adj(n);
+        for(int i = 0; i < n; i++) {
+          cell* c = cells[i];
+          for(int j = 0; j < c->type; j++) {
+            cell* neighbor = c->move(j);
+            if(neighbor && cell_to_idx.count(neighbor)) {
+              adj[i].push_back(cell_to_idx[neighbor]);
+            }
+          }
+        }
+
+        // Step 3: Initialize all cells as walls
+        vector<bool> is_grass(n, false);
+
+        // Step 4: DFS maze generation
+        // Mark start as grass
+        is_grass[0] = true;
+
+        vector<int> stack;
+        stack.push_back(0);
+
+        while(!stack.empty()) {
+          int cur = stack.back();
+
+          // DFS Random: randomly terminate branch with probability maze_branch_prob
+          if(maze_algorithm == 1 && hrandf() < maze_branch_prob) {
+            stack.pop_back();
+            continue;
+          }
+
+          // Find neighbors that are walls and have exactly one grass neighbor (cur)
+          vector<int> candidates;
+          for(int next : adj[cur]) {
+            if(is_grass[next]) continue; // already grass
+
+            // Count grass neighbors of 'next'
+            int grass_neighbors = 0;
+            for(int nn : adj[next]) {
+              if(is_grass[nn]) grass_neighbors++;
+            }
+
+            if(grass_neighbors == 1) {
+              candidates.push_back(next);
+            }
+          }
+
+          if(candidates.empty()) {
+            stack.pop_back(); // backtrack
+          } else {
+            // Pick a random candidate
+            int next = candidates[hrand(isize(candidates))];
+            is_grass[next] = true;
+            stack.push_back(next);
+          }
+        }
+
+        // Step 5: Apply the maze to actual cells
+        for(int i = 0; i < n; i++) {
+          cells[i]->wall = is_grass[i] ? waCIsland : waStone;
+        }
+
+        // Step 6: Pick a random grass cell (not the start) as the goal - mark it with gold
+        vector<int> grass_cell_indices;
+        for(int i = 1; i < n; i++) {  // skip 0 which is the start
+          if(is_grass[i]) grass_cell_indices.push_back(i);
+        }
+        if(!grass_cell_indices.empty()) {
+          int goal_idx = grass_cell_indices[hrand(isize(grass_cell_indices))];
+          cells[goal_idx]->item = itGold;  // gold treasure as goal marker
+        }
+
+        addMessage("Maze generated with " + its(n) + " cells, " + its(isize(grass_cell_indices)) + " passages");
+      }
+
+      // For cells outside the maze or not yet processed - make them limestone walls
+      if(c->wall == waNone)
+        c->wall = waStone;
+      else if(c->wall != waStone && c->wall != waCIsland)
+        c->wall = waStone;
+
+      // No monsters allowed in peaceful land
+      c->monst = moNone;
+
       break;
       }
 

@@ -560,6 +560,47 @@ EX void showGameMenu() {
     }
   dialog::addItem(XLAT("settings"), 's');
   dialog::add_action_push(showSettings);
+  if(firstland == laPeaceful) {
+    dialog::addItem(XLAT("maze settings"), 'z');
+    dialog::add_action_push(showMazeConfig);
+    dialog::addItem("{7,3} hyperbolic", '1');
+    dialog::add_action([] {
+      popScreenAll();
+      stop_game();
+      set_geometry(gNormal);
+      set_variation(eVariation::bitruncated);
+      maze_radius = 6;
+      pconf.scale = 1;
+      start_game();
+    });
+    dialog::addItem("{6,3} euclidean", '2');
+    dialog::add_action([] {
+      popScreenAll();
+      stop_game();
+      set_geometry(gEuclid);
+      set_variation(eVariation::pure);
+      maze_radius = 10;
+      pconf.scale = 0.2;
+      sightrange_bonus = 3;
+      genrange_bonus = 3;
+      gamerange_bonus = 3;
+      vid.use_smart_range = 0;
+      start_game();
+      // force generation of cells at extended range
+      setdist(cwt.at, 7 - getDistLimit() - genrange_bonus, NULL);
+    });
+    dialog::addItem("{5,3} spherical GP(4,4)", '3');
+    dialog::add_action([] {
+      popScreenAll();
+      stop_game();
+      set_geometry(gSphere);
+      gp::param = gp::loc(4, 4);
+      set_variation(eVariation::goldberg);
+      maze_radius = 12;
+      pconf.scale = 1;
+      start_game();
+    });
+    }
   dialog::addItem(XLAT("creative mode"), 'c');
   dialog::add_action_push(showCreative);
   if(!intour) {

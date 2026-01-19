@@ -1762,6 +1762,12 @@ ITEM('}', 0xFFFF80, "Crossbow", itCrossbow, IC_NAI, ZERO, RESERVED, osNone,
   "click again to fire. After firing, the crossbow takes some time to reload."
   )
 
+LAND( 0x40FF40, "Maze Generation", laPeaceful, ZERO, itNone, RESERVED,
+  "Experiment with maze generation algorithms in hyperbolic, euclidean, and spherical geometries."
+  )
+  NATIVE(0)
+  REQ(NEVER)
+
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")
 MONSTER( '*', 0xC0C0C0, "Knife", moBullet, ZERO | CF_BULLET, RESERVED, moNone, "A simple, but effective, missile, used by rogues.")

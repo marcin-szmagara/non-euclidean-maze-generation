@@ -15,6 +15,38 @@ namespace hr {
 EX ld whatever[16];
 EX int whateveri[16];
 
+// Peaceful Island maze configuration
+EX int maze_radius = 7;
+EX int maze_algorithm = 1;  // 0 = DFS Basic, 1 = DFS Random
+EX ld maze_branch_prob = 0.02;  // probability of terminating branch in DFS Random
+
+// Hook to set up Maze Generation settings on game start
+auto peaceful_hook = addHook(hooks_post_initgame, 100, [] {
+  if(firstland == laPeaceful) {
+    timerghost = false;
+    gen_wandering = false;
+    vid.use_smart_range = 0;
+    // Set range and radius based on geometry
+    if(euclid) {
+      sightrange_bonus = 3;
+      genrange_bonus = 3;
+      gamerange_bonus = 3;
+      pconf.scale = 0.2;
+      maze_radius = 10;
+    } else if(sphere) {
+      sightrange_bonus = 1;
+      genrange_bonus = 1;
+      gamerange_bonus = 1;
+      maze_radius = 12;
+    } else {
+      sightrange_bonus = 1;
+      genrange_bonus = 1;
+      gamerange_bonus = 1;
+      maze_radius = 6;
+    }
+  }
+});
+
 int PREC(ld x) {
   ld sh = shiftmul;
   if(sh > -.2 && sh < .2) x = 10.01; 
@@ -893,6 +925,44 @@ void announce_seasonal() {
   dialog::addTitle("(seasonal option)", 0x808080, 100);
   }
 
+const char* maze_algorithm_name() {
+  switch(maze_algorithm) {
+    case 0: return "DFS Basic";
+    case 1: return "DFS Random";
+    default: return "Unknown";
+  }
+}
+
+EX void showMazeConfig() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("Maze Configuration"), 0x40FF40, 150, 100);
+
+  dialog::addSelItem("algorithm", maze_algorithm_name(), 'a');
+  dialog::add_action([] {
+    maze_algorithm = (maze_algorithm + 1) % 2;
+  });
+
+  dialog::addSelItem("radius", its(maze_radius), 'r');
+  dialog::add_action([] {
+    dialog::editNumber(maze_radius, 2, 20, 1, 7, "maze radius",
+      "The radius of the maze in cells from the starting position.");
+  });
+
+  if(maze_algorithm == 1) {
+    dialog::addSelItem("branch termination probability", fts(maze_branch_prob), 'p');
+    dialog::add_action([] {
+      dialog::editNumber(maze_branch_prob, 0, 1, 0.05, 0.1, "branch termination probability",
+        "Probability of randomly terminating the current branch during DFS. "
+        "Higher values create shorter, more branching paths.");
+    });
+  }
+
+  dialog::addBreak(100);
+  dialog::addBack();
+  dialog::display();
+}
+
 EX void showStartMenu() {
   if(!daily_mode) {
     daily_mode = hrand(10) + 1;
@@ -908,8 +978,12 @@ EX void showStartMenu() {
   #endif
 
   dialog::init();
-  
+
   dialog::addInfo(XLAT("Welcome to HyperRogue!"));
+  dialog::addBreak(100);
+
+  dialog::addBigItem(XLAT("Maze Generation"), 'p');
+  dialog::addInfo(XLAT("experiment with maze generation"));
   dialog::addBreak(100);
 
   dialog::addBigItem(XLAT("HyperRogue classic"), 'c');
@@ -1127,6 +1201,23 @@ EX void showStartMenu() {
       pushScreen(daily::showMenu);
       }
 #endif
+    else if(uni == 'p') {
+      // Peaceful Island mode - spawn directly into the peaceful land
+      popScreenAll();
+      resetModes('c');
+      stop_game();
+      land_structure = lsSingle;
+      specialland = laPeaceful;
+      timerghost = false;  // disable ghost spawning when idle
+      gen_wandering = false;  // disable wandering monsters
+      sightrange_bonus = 1;    // display range: 7 + 1 = 8
+      genrange_bonus = 1;      // generation range: 7 + 1 = 8
+      gamerange_bonus = 1;     // game logic range: 7 + 1 = 8
+      vid.use_smart_range = 0;  // disable smart range to use fixed sightrange
+      start_game();
+      clearMessages();
+      addMessage(XLAT("Welcome to Maze Generation!"));
+      }
     else if(uni == 'm') {
       popScreen();
       pushScreen(showGameMenu);

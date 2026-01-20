@@ -17,8 +17,12 @@ EX int whateveri[16];
 
 // Peaceful Island maze configuration
 EX int maze_radius = 7;
-EX int maze_algorithm = 1;  // 0 = DFS Basic, 1 = DFS Random
-EX ld maze_branch_prob = 0.02;  // probability of terminating branch in DFS Random
+EX int maze_algorithm = 5;  // 0 = DFS Basic, 1 = DFS Constant Cutoff, 2 = Kruskal, 3 = Prim, 4 = Wilson, 5 = Aldous-Broder
+EX ld maze_branch_prob = 0.02;  // probability of cutoff in DFS Constant Cutoff
+EX int maze_backtrack_dist = 10;  // number of steps to backtrack on cutoff
+
+// Flag to indicate geometry was changed from menu (should reset defaults)
+EX bool maze_geometry_changed = false;
 
 // Hook to set Maze Generation settings before land generation
 auto peaceful_hook = addHook(hooks_initgame, 100, [] {
@@ -26,24 +30,26 @@ auto peaceful_hook = addHook(hooks_initgame, 100, [] {
     timerghost = false;
     gen_wandering = false;
     vid.use_smart_range = 0;
-    // Set range and radius based on geometry
     if(euclid) {
-      sightrange_bonus = 7;
-      genrange_bonus = 7;
-      gamerange_bonus = 7;
       pconf.scale = 0.2;
-      maze_radius = 13;
-    } else if(sphere) {
-      sightrange_bonus = 1;
-      genrange_bonus = 1;
-      gamerange_bonus = 1;
-      maze_radius = 30;
-    } else {
-      sightrange_bonus = 1;
-      genrange_bonus = 1;
-      gamerange_bonus = 1;
-      maze_radius = 7;
     }
+    // Only set radius default if geometry was changed from menu
+    if(maze_geometry_changed) {
+      maze_geometry_changed = false;
+      if(euclid) {
+        maze_radius = 13;
+      } else if(sphere) {
+        maze_radius = 30;
+      } else {
+        maze_radius = 7;
+      }
+    }
+    // Set vision to match radius + 1
+    int vision_bonus = maze_radius + 1 - 7;
+    if(vision_bonus < 0) vision_bonus = 0;
+    sightrange_bonus = vision_bonus;
+    genrange_bonus = vision_bonus;
+    gamerange_bonus = vision_bonus;
   }
 });
 
@@ -928,7 +934,11 @@ void announce_seasonal() {
 const char* maze_algorithm_name() {
   switch(maze_algorithm) {
     case 0: return "DFS Basic";
-    case 1: return "DFS Random";
+    case 1: return "DFS Constant Cutoff";
+    case 2: return "Kruskal";
+    case 3: return "Prim";
+    case 4: return "Wilson";
+    case 5: return "Aldous-Broder";
     default: return "Unknown";
   }
 }
@@ -940,7 +950,7 @@ EX void showMazeConfig() {
 
   dialog::addSelItem("algorithm", maze_algorithm_name(), 'a');
   dialog::add_action([] {
-    maze_algorithm = (maze_algorithm + 1) % 2;
+    maze_algorithm = (maze_algorithm + 1) % 6;
   });
 
   dialog::addSelItem("radius", its(maze_radius), 'r');
@@ -950,11 +960,17 @@ EX void showMazeConfig() {
   });
 
   if(maze_algorithm == 1) {
-    dialog::addSelItem("branch termination probability", fts(maze_branch_prob), 'p');
+    dialog::addSelItem("cutoff probability", fts(maze_branch_prob), 'p');
     dialog::add_action([] {
-      dialog::editNumber(maze_branch_prob, 0, 1, 0.05, 0.1, "branch termination probability",
-        "Probability of randomly terminating the current branch during DFS. "
+      dialog::editNumber(maze_branch_prob, 0, 1, 0.05, 0.1, "cutoff probability",
+        "Probability of backtracking during DFS. "
         "Higher values create shorter, more branching paths.");
+    });
+
+    dialog::addSelItem("backtrack distance (n)", its(maze_backtrack_dist), 'n');
+    dialog::add_action([] {
+      dialog::editNumber(maze_backtrack_dist, 1, 20, 1, 1, "backtrack distance",
+        "Number of steps to backtrack on cutoff. Must be at least 1.");
     });
   }
 
@@ -1206,8 +1222,11 @@ EX void showStartMenu() {
       popScreenAll();
       resetModes('c');
       stop_game();
+      set_geometry(gEuclid);
+      set_variation(eVariation::pure);
       land_structure = lsSingle;
       specialland = laPeaceful;
+      maze_geometry_changed = true;
       start_game();
       clearMessages();
       addMessage(XLAT("Welcome to Maze Generation!"));

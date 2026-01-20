@@ -569,8 +569,7 @@ EX void showGameMenu() {
       stop_game();
       set_geometry(gNormal);
       set_variation(eVariation::bitruncated);
-      maze_radius = 6;
-      pconf.scale = 1;
+      maze_geometry_changed = true;
       start_game();
     });
     dialog::addItem("{6,3} euclidean", '2');
@@ -579,12 +578,7 @@ EX void showGameMenu() {
       stop_game();
       set_geometry(gEuclid);
       set_variation(eVariation::pure);
-      maze_radius = 10;
-      pconf.scale = 0.2;
-      sightrange_bonus = 3;
-      genrange_bonus = 3;
-      gamerange_bonus = 3;
-      vid.use_smart_range = 0;
+      maze_geometry_changed = true;
       start_game();
       // force generation of cells at extended range
       setdist(cwt.at, 7 - getDistLimit() - genrange_bonus, NULL);
@@ -596,8 +590,7 @@ EX void showGameMenu() {
       set_geometry(gSphere);
       gp::param = gp::loc(4, 4);
       set_variation(eVariation::goldberg);
-      maze_radius = 12;
-      pconf.scale = 1;
+      maze_geometry_changed = true;
       start_game();
     });
     }

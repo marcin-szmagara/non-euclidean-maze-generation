@@ -2814,53 +2814,310 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         // Step 3: Initialize all cells as walls
         vector<bool> is_grass(n, false);
 
-        // Step 4: DFS maze generation
-        // Mark start as grass
-        is_grass[0] = true;
+        // Step 4: Maze generation
+        if(maze_algorithm == 2) {
+          // Kruskal's algorithm variant
+          // DSU (Disjoint Set Union) data structure
+          vector<int> dsu_parent(n), dsu_rank(n, 0);
+          for(int i = 0; i < n; i++) dsu_parent[i] = i;
 
-        vector<int> stack;
-        stack.push_back(0);
+          function<int(int)> dsu_find = [&](int x) {
+            if(dsu_parent[x] != x) dsu_parent[x] = dsu_find(dsu_parent[x]);
+            return dsu_parent[x];
+          };
 
-        while(!stack.empty()) {
-          int cur = stack.back();
+          auto dsu_union = [&](int x, int y) {
+            int px = dsu_find(x), py = dsu_find(y);
+            if(px == py) return;
+            if(dsu_rank[px] < dsu_rank[py]) swap(px, py);
+            dsu_parent[py] = px;
+            if(dsu_rank[px] == dsu_rank[py]) dsu_rank[px]++;
+          };
 
-          // DFS Random: randomly terminate branch with probability maze_branch_prob
-          if(maze_algorithm == 1 && hrandf() < maze_branch_prob) {
-            stack.pop_back();
-            continue;
+          // Start cell is always grass first
+          is_grass[0] = true;
+
+          // Assign random values to each cell and sort by them
+          vector<pair<ld, int>> cell_order(n);
+          for(int i = 0; i < n; i++) {
+            cell_order[i] = {hrandf(), i};
+          }
+          sort(cell_order.begin(), cell_order.end());
+
+          // Process cells in random order
+          for(auto& [val, idx] : cell_order) {
+            if(is_grass[idx]) continue;  // already grass (including start cell)
+
+            // Get grass neighbors only
+            vector<int> grass_neighbors;
+            for(int nb : adj[idx]) {
+              if(is_grass[nb]) grass_neighbors.push_back(nb);
+            }
+
+            // Check if all grass neighbors are pairwise disconnected
+            bool all_disconnected = true;
+            for(int i = 0; i < isize(grass_neighbors) && all_disconnected; i++) {
+              for(int j = i + 1; j < isize(grass_neighbors) && all_disconnected; j++) {
+                if(dsu_find(grass_neighbors[i]) == dsu_find(grass_neighbors[j])) {
+                  all_disconnected = false;
+                }
+              }
+            }
+
+            if(all_disconnected) {
+              // Mark as grass and union this cell with all grass neighbors
+              is_grass[idx] = true;
+              for(int nb : grass_neighbors) {
+                dsu_union(idx, nb);
+              }
+            }
           }
 
-          // Find neighbors that are walls and have exactly one grass neighbor (cur)
-          vector<int> candidates;
-          for(int next : adj[cur]) {
-            if(is_grass[next]) continue; // already grass
+        } else if(maze_algorithm == 3) {
+          // Prim's algorithm variant
+          // DSU (Disjoint Set Union) data structure
+          vector<int> dsu_parent(n), dsu_rank(n, 0);
+          for(int i = 0; i < n; i++) dsu_parent[i] = i;
 
-            // Count grass neighbors of 'next'
-            int grass_neighbors = 0;
-            for(int nn : adj[next]) {
-              if(is_grass[nn]) grass_neighbors++;
+          function<int(int)> dsu_find = [&](int x) {
+            if(dsu_parent[x] != x) dsu_parent[x] = dsu_find(dsu_parent[x]);
+            return dsu_parent[x];
+          };
+
+          auto dsu_union = [&](int x, int y) {
+            int px = dsu_find(x), py = dsu_find(y);
+            if(px == py) return;
+            if(dsu_rank[px] < dsu_rank[py]) swap(px, py);
+            dsu_parent[py] = px;
+            if(dsu_rank[px] == dsu_rank[py]) dsu_rank[px]++;
+          };
+
+          // Assign random weights to each cell
+          vector<ld> cell_weight(n);
+          for(int i = 0; i < n; i++) {
+            cell_weight[i] = hrandf();
+          }
+
+          // Start with start cell as grass
+          is_grass[0] = true;
+
+          // Priority queue: (weight, cell index), min-heap
+          std::priority_queue<pair<ld, int>, vector<pair<ld, int>>, std::greater<pair<ld, int>>> pq;
+
+          // Add neighbors of start cell to queue
+          for(int nb : adj[0]) {
+            pq.push({cell_weight[nb], nb});
+          }
+
+          while(!pq.empty()) {
+            ld weight = pq.top().first;
+            int idx = pq.top().second;
+            pq.pop();
+
+            if(is_grass[idx]) continue;  // already processed
+
+            // Get grass neighbors only
+            vector<int> grass_neighbors;
+            for(int nb : adj[idx]) {
+              if(is_grass[nb]) grass_neighbors.push_back(nb);
             }
 
-            if(grass_neighbors == 1) {
-              candidates.push_back(next);
+            // Check if all grass neighbors are pairwise disconnected
+            bool all_disconnected = true;
+            for(int i = 0; i < isize(grass_neighbors) && all_disconnected; i++) {
+              for(int j = i + 1; j < isize(grass_neighbors) && all_disconnected; j++) {
+                if(dsu_find(grass_neighbors[i]) == dsu_find(grass_neighbors[j])) {
+                  all_disconnected = false;
+                }
+              }
+            }
+
+            if(all_disconnected) {
+              // Mark as grass and union this cell with all grass neighbors
+              is_grass[idx] = true;
+              for(int nb : grass_neighbors) {
+                dsu_union(idx, nb);
+              }
+
+              // Add wall neighbors to queue
+              for(int nb : adj[idx]) {
+                if(!is_grass[nb]) {
+                  pq.push({cell_weight[nb], nb});
+                }
+              }
             }
           }
 
-          if(candidates.empty()) {
-            stack.pop_back(); // backtrack
-          } else {
-            // Pick a random candidate
-            int next = candidates[hrand(isize(candidates))];
-            // Double-check grass neighbors at moment of addition
-            int verify_count = 0;
-            for(int nn : adj[next]) {
-              if(is_grass[nn]) verify_count++;
+        } else if(maze_algorithm == 4) {
+          // Wilson's algorithm variant
+          // Start with start cell as grass
+          is_grass[0] = true;
+
+          // List of wall cells to process
+          vector<int> wall_cells;
+          for(int i = 1; i < n; i++) wall_cells.push_back(i);
+
+          // Shuffle for random order
+          for(int i = isize(wall_cells) - 1; i > 0; i--) {
+            int j = hrand(i + 1);
+            swap(wall_cells[i], wall_cells[j]);
+          }
+
+          int iteration_count = 0;
+          for(int start_cell : wall_cells) {
+            if(iteration_count >= 2) break;  // DEBUG: only 2 iterations
+
+            if(is_grass[start_cell]) continue;  // already part of tree
+
+            // Only consider cells with at most 1 grass neighbor
+            int grass_neighbor_count = 0;
+            for(int nb : adj[start_cell]) {
+              if(is_grass[nb]) grass_neighbor_count++;
             }
-            if(verify_count != 1) {
-              println(hlog, "BUG: Adding cell ", next, " with ", verify_count, " grass neighbors (expected 1)");
+            if(grass_neighbor_count > 1) continue;
+
+            // Random walk until hitting grass
+            vector<bool> visited(n, false);
+            int current = start_cell;
+            visited[current] = true;
+
+            while(!is_grass[current]) {
+              // Pick random neighbor
+              int next = adj[current][hrand(isize(adj[current]))];
+              current = next;
+              visited[current] = true;
             }
-            is_grass[next] = true;
-            stack.push_back(next);
+
+            // BFS from start_cell to any grass cell, using only visited cells
+            vector<int> parent(n, -1);
+            queue<int> bfs_queue;
+            bfs_queue.push(start_cell);
+            parent[start_cell] = start_cell;
+
+            int reached_grass = -1;
+            while(!bfs_queue.empty() && reached_grass == -1) {
+              int cur = bfs_queue.front();
+              bfs_queue.pop();
+
+              for(int nb : adj[cur]) {
+                if(visited[nb] && parent[nb] == -1) {
+                  parent[nb] = cur;
+                  if(is_grass[nb]) {
+                    reached_grass = nb;
+                    break;
+                  }
+                  bfs_queue.push(nb);
+                }
+              }
+            }
+
+            if(reached_grass == -1) continue;  // shouldn't happen, but safety check
+
+            // Reconstruct path and mark as grass
+            vector<int> path;
+            int cur = reached_grass;
+            while(cur != start_cell) {
+              path.push_back(cur);
+              cur = parent[cur];
+            }
+            path.push_back(start_cell);
+
+            // DEBUG: log the path
+            string path_str = "Wilson path: ";
+            for(int i = isize(path) - 1; i >= 0; i--) {
+              path_str += its(path[i]);
+              if(i > 0) path_str += " -> ";
+            }
+            println(hlog, path_str);
+
+            // Mark path as grass (except hit_grass which is already grass)
+            for(int cell : path) {
+              is_grass[cell] = true;
+            }
+
+            iteration_count++;
+          }
+
+        } else if(maze_algorithm == 5) {
+          // Aldous-Broder algorithm
+          // Start at start cell
+          is_grass[0] = true;
+          int current = 0;
+
+          for(int iter = 0; iter < 100000; iter++) {
+            // Find valid neighbors: grass cells, or wall cells with ≤1 grass neighbor
+            vector<int> valid_neighbors;
+            for(int nb : adj[current]) {
+              if(is_grass[nb]) {
+                valid_neighbors.push_back(nb);
+              } else {
+                int grass_neighbor_count = 0;
+                for(int nn : adj[nb]) {
+                  if(is_grass[nn]) grass_neighbor_count++;
+                }
+                if(grass_neighbor_count <= 1) {
+                  valid_neighbors.push_back(nb);
+                }
+              }
+            }
+
+            if(valid_neighbors.empty()) break;  // stuck, can't move
+
+            // Pick random valid neighbor, move there
+            int next = valid_neighbors[hrand(isize(valid_neighbors))];
+            is_grass[next] = true;  // mark as grass (no-op if already grass)
+            current = next;
+          }
+
+        } else {
+          // DFS-based algorithms
+          // Mark start as grass
+          is_grass[0] = true;
+
+          vector<int> stack;
+          stack.push_back(0);
+
+          while(!stack.empty()) {
+            int cur = stack.back();
+
+            // DFS Constant Cutoff: with probability p, if depth >= n+1, backtrack n steps
+            if(maze_algorithm == 1 && isize(stack) >= maze_backtrack_dist + 1 && hrandf() < maze_branch_prob) {
+              for(int i = 0; i < maze_backtrack_dist; i++) stack.pop_back();
+              continue;
+            }
+
+            // Find neighbors that are walls and have exactly one grass neighbor (cur)
+            vector<int> candidates;
+            for(int next : adj[cur]) {
+              if(is_grass[next]) continue; // already grass
+
+              // Count grass neighbors of 'next'
+              int grass_neighbors = 0;
+              for(int nn : adj[next]) {
+                if(is_grass[nn]) grass_neighbors++;
+              }
+
+              if(grass_neighbors == 1) {
+                candidates.push_back(next);
+              }
+            }
+
+            if(candidates.empty()) {
+              stack.pop_back(); // backtrack
+            } else {
+              // Pick a random candidate
+              int next = candidates[hrand(isize(candidates))];
+              // Double-check grass neighbors at moment of addition
+              int verify_count = 0;
+              for(int nn : adj[next]) {
+                if(is_grass[nn]) verify_count++;
+              }
+              if(verify_count != 1) {
+                println(hlog, "BUG: Adding cell ", next, " with ", verify_count, " grass neighbors (expected 1)");
+              }
+              is_grass[next] = true;
+              stack.push_back(next);
+            }
           }
         }
 
@@ -2869,17 +3126,23 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           cells[i]->wall = is_grass[i] ? waCIsland : waStone;
         }
 
-        // Step 6: Pick a random grass cell (not the start) as the goal - mark it with gold
-        vector<int> grass_cell_indices;
+        // Step 6: Pick a random leaf cell (grass with exactly 1 grass neighbor) as the goal
+        vector<int> leaf_cell_indices;
         for(int i = 1; i < n; i++) {  // skip 0 which is the start
-          if(is_grass[i]) grass_cell_indices.push_back(i);
+          if(is_grass[i]) {
+            int grass_neighbors = 0;
+            for(int nn : adj[i]) {
+              if(is_grass[nn]) grass_neighbors++;
+            }
+            if(grass_neighbors == 1) leaf_cell_indices.push_back(i);
+          }
         }
-        if(!grass_cell_indices.empty()) {
-          int goal_idx = grass_cell_indices[hrand(isize(grass_cell_indices))];
+        if(!leaf_cell_indices.empty()) {
+          int goal_idx = leaf_cell_indices[hrand(isize(leaf_cell_indices))];
           cells[goal_idx]->item = itGold;  // gold treasure as goal marker
         }
 
-        addMessage("Maze generated with " + its(n) + " cells, " + its(isize(grass_cell_indices)) + " passages");
+        addMessage("Maze generated with " + its(n) + " cells, " + its(isize(leaf_cell_indices)) + " leaves");
       }
 
       // For cells outside the maze or not yet processed - make them limestone walls

@@ -4,12 +4,19 @@ based on [Hyperrogue](https://github.com/zenorogue/hyperrogue)
 
 The aim of the project is to test different maze generation algorithms in non-euclidean geometries, with special focus on hyperbolic geometry.
 
-Currently the project implements a testing framework and simple algorithms. These are then tested.
+### Progress
 
-Next steps:
-* implement more algorithms in the current setup
-* focus on hyperbolic geometry with higher radius (much bigger mazes)
-* develop agents solving the mazes to quantitatively compare maze generation performance
+Currently the project implements a testing framework and a few generation algorithms. These are then tested.
+
+Initially planed next steps:
+* develop agents solving the mazes to quantitatively compare maze generation performance - won't do as the mazes we generate are small enough to completely judge by eye, no need for metrics
+
+New next steps:
+* Consider different navigation challenges than mazes, fully procedurally generated, in spirit with hyperrogue.
+
+### Bulding
+
+HYPERROGUE_USE_GLEW=1 HYPERROGUE_USE_PNG=1 make
 
 ### Setup
 

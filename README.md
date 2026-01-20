@@ -16,7 +16,7 @@ New next steps:
 
 ### Bulding
 
-HYPERROGUE_USE_GLEW=1 HYPERROGUE_USE_PNG=1 make
+`HYPERROGUE_USE_GLEW=1 HYPERROGUE_USE_PNG=1 make`
 
 ### Setup
 

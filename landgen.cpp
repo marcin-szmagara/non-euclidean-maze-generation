@@ -2742,8 +2742,23 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       // Maze generation using DFS
       // This runs once when the first cell is processed
       static bool maze_generated = false;
-      static int cleanup_hook = addHook(hooks_clearmemory, 100, [] { maze_generated = false; });
+      static map<cell*, int> debug_cell_idx;
+      static vector<vector<int>> debug_adj;
+      static int cleanup_hook = addHook(hooks_clearmemory, 100, [] {
+        maze_generated = false;
+        debug_cell_idx.clear();
+        debug_adj.clear();
+      });
+      static int mouseover_hook = addHook(hooks_mouseover, 100, [] (cell *c) {
+        if(firstland == laPeaceful && c && debug_cell_idx.count(c)) {
+          int idx = debug_cell_idx[c];
+          string s = "Cell " + its(idx) + " neighbors: ";
+          for(int j : debug_adj[idx]) s += its(j) + " ";
+          mouseovers = s;
+        }
+      });
       (void)cleanup_hook; // suppress unused warning
+      (void)mouseover_hook;
 
       if(!maze_generated && firstland == laPeaceful) {
         maze_generated = true;
@@ -2752,27 +2767,49 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
 
         // Step 1: Generate all cells within distance maze_radius
         celllister cl(start, maze_radius, 100000, NULL);
-        vector<cell*>& cells = cl.lst;
+        vector<cell*> cells = cl.lst;  // copy, not reference
         int n = isize(cells);
 
+        // Step 1b: Generate cells further out to ensure all boundary connections exist
+        celllister cl_extended(start, maze_radius + 3, 100000, NULL);
+        (void)cl_extended;  // just need the side effect of creating cells
+
         // Step 2: Build adjacency list representation
-        // Map cell pointers to indices
+        // Map cell pointers to indices (only for cells in our maze)
         map<cell*, int> cell_to_idx;
         for(int i = 0; i < n; i++) {
           cell_to_idx[cells[i]] = i;
         }
 
-        // Build adjacency lists (only including cells within our set)
+        // Build adjacency lists (only including edges between cells in our maze)
         vector<vector<int>> adj(n);
         for(int i = 0; i < n; i++) {
           cell* c = cells[i];
+          set<int> neighbors_seen;
           for(int j = 0; j < c->type; j++) {
             cell* neighbor = c->move(j);
             if(neighbor && cell_to_idx.count(neighbor)) {
-              adj[i].push_back(cell_to_idx[neighbor]);
+              int idx = cell_to_idx[neighbor];
+              if(!neighbors_seen.count(idx)) {
+                neighbors_seen.insert(idx);
+                adj[i].push_back(idx);
+              }
             }
           }
         }
+
+        // Verify adjacency is symmetric
+        for(int i = 0; i < n; i++) {
+          for(int j : adj[i]) {
+            bool found = false;
+            for(int k : adj[j]) if(k == i) found = true;
+            if(!found) println(hlog, "Asymmetric adjacency: ", i, " -> ", j, " but not reverse");
+          }
+        }
+
+        // Store for debug display
+        debug_cell_idx = cell_to_idx;
+        debug_adj = adj;
 
         // Step 3: Initialize all cells as walls
         vector<bool> is_grass(n, false);
@@ -2814,6 +2851,14 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           } else {
             // Pick a random candidate
             int next = candidates[hrand(isize(candidates))];
+            // Double-check grass neighbors at moment of addition
+            int verify_count = 0;
+            for(int nn : adj[next]) {
+              if(is_grass[nn]) verify_count++;
+            }
+            if(verify_count != 1) {
+              println(hlog, "BUG: Adding cell ", next, " with ", verify_count, " grass neighbors (expected 1)");
+            }
             is_grass[next] = true;
             stack.push_back(next);
           }

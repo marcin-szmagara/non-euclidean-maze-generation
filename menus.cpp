@@ -20,29 +20,29 @@ EX int maze_radius = 7;
 EX int maze_algorithm = 1;  // 0 = DFS Basic, 1 = DFS Random
 EX ld maze_branch_prob = 0.02;  // probability of terminating branch in DFS Random
 
-// Hook to set up Maze Generation settings on game start
-auto peaceful_hook = addHook(hooks_post_initgame, 100, [] {
-  if(firstland == laPeaceful) {
+// Hook to set Maze Generation settings before land generation
+auto peaceful_hook = addHook(hooks_initgame, 100, [] {
+  if(specialland == laPeaceful) {
     timerghost = false;
     gen_wandering = false;
     vid.use_smart_range = 0;
     // Set range and radius based on geometry
     if(euclid) {
-      sightrange_bonus = 3;
-      genrange_bonus = 3;
-      gamerange_bonus = 3;
+      sightrange_bonus = 7;
+      genrange_bonus = 7;
+      gamerange_bonus = 7;
       pconf.scale = 0.2;
-      maze_radius = 10;
+      maze_radius = 13;
     } else if(sphere) {
       sightrange_bonus = 1;
       genrange_bonus = 1;
       gamerange_bonus = 1;
-      maze_radius = 12;
+      maze_radius = 30;
     } else {
       sightrange_bonus = 1;
       genrange_bonus = 1;
       gamerange_bonus = 1;
-      maze_radius = 6;
+      maze_radius = 7;
     }
   }
 });
@@ -1208,12 +1208,6 @@ EX void showStartMenu() {
       stop_game();
       land_structure = lsSingle;
       specialland = laPeaceful;
-      timerghost = false;  // disable ghost spawning when idle
-      gen_wandering = false;  // disable wandering monsters
-      sightrange_bonus = 1;    // display range: 7 + 1 = 8
-      genrange_bonus = 1;      // generation range: 7 + 1 = 8
-      gamerange_bonus = 1;     // game logic range: 7 + 1 = 8
-      vid.use_smart_range = 0;  // disable smart range to use fixed sightrange
       start_game();
       clearMessages();
       addMessage(XLAT("Welcome to Maze Generation!"));
